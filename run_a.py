@@ -1,14 +1,16 @@
 import requests, json
 import os, time
 import eyed3
-
+from gevent import monkey
+monkey.patch_all()
+import gevent
 # 10/18更新，找到个新的API，似乎更方便
 # 默认下载高品质(无损品质更改download_song_url里的参数'formatType=SQ resourceType=E'即可)
 
 class Migu():
     def __init__(self):
         self.path = os.path.abspath('F:/咪咕下载')
-        self.search_url = 'http://pd.musicapp.migu.cn/MIGUM2.0/v1.0/content/search_all.do?&ua=Android_migu&version=5.0.1&text={}&pageNo={}&pageSize=10&searchSwitch='
+        self.search_url = 'http://pd.musicapp.migu.cn/MIGUM3.0/v1.0/content/search_all.do?&ua=Android_migu&version=5.0.1&text={}&pageNo={}&pageSize=10&searchSwitch='
         self.to_add_url = '{"song":1,"album":0,"singer":0,"tagSong":0,"mvSong":0,"songlist":0,"bestShow":1}'
         self.download_song_url = 'http://app.pd.nf.migu.cn/MIGUM2.0/v1.0/content/sub/listenSong.do?toneFlag=HQ&netType=00&userId=15548614588710179085069&ua=Android_migu&version=5.1&copyrightId=0&contentId={}&resourceType=2&channel=0'
         self.headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/75.0.3770.100 Safari/537.36',
@@ -47,20 +49,38 @@ class Migu():
     def download_song(self, search_list, text):
         # 创建歌手文件夹，存放歌曲
         os.mkdir(self.path + './' + text)
-        for song in search_list:
+        def inner_download(song):
             contentId = song['contentId']
             name = song['name']
             url = self.download_song_url.format(contentId)
             try:
-                response = requests.get(url, headers = self.headers)
+                response = requests.get(url, headers=self.headers)
             except TimeoutError:
                 time.sleep(2)
-                response = requests.get(url, headers = self.headers, timeout=None)
-            filename = os.path.join(self.path, text, name+'.mp3')
+                response = requests.get(url, headers=self.headers, timeout=None)
+            filename = os.path.join(self.path, text, name + '.mp3')
             with open(filename, 'wb') as f:
                 f.write(response.content)
-                print('已下载%s'%name)
+                print('已下载%s' % name)
             time.sleep(1)
+
+        pool = gevent.pool.Pool(10)
+        threads = [pool.spawn(inner_download, i) for i in search_list]
+        gevent.joinall(threads)
+        # for song in search_list:
+        #     contentId = song['contentId']
+        #     name = song['name']
+        #     url = self.download_song_url.format(contentId)
+        #     try:
+        #         response = requests.get(url, headers = self.headers)
+        #     except TimeoutError:
+        #         time.sleep(2)
+        #         response = requests.get(url, headers = self.headers, timeout=None)
+        #     filename = os.path.join(self.path, text, name+'.mp3')
+        #     with open(filename, 'wb') as f:
+        #         f.write(response.content)
+        #         print('已下载%s'%name)
+        #     time.sleep(1)
     
     def download_pic_and_lyc(self, text):
         # 下载图片和歌词
@@ -92,11 +112,11 @@ class Migu():
     def run(self):
         # text = input('请输入需要下载歌曲的歌手：')
         # print('你输入的歌手名是：{}, 已发送请求！'.format(text))
-        text = '周杰伦'
-        #search_list = self.get_searchlist(text)
-        #self.wirte_lsit(search_list, text)
-        #self.download_song(search_list, text)
-        self.download_pic_and_lyc(text)
+        text = '林宥嘉'
+        search_list = self.get_searchlist(text)
+        # self.wirte_lsit(search_list, text)
+        self.download_song(search_list, text)
+        # self.download_pic_and_lyc(text)
 
 if __name__ == '__main__':
     test = Migu()
